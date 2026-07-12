@@ -4,12 +4,11 @@ import express from 'express';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
 import { z } from 'zod';
-import { EnvSchema } from './config/schema.js';
+import { config } from './config/schema.js';
 import { logger } from './utils/logger.js';
 import { AssetService } from './services/AssetService.js';
 import { SovereigntyError } from './utils/errors.js';
 
-const env = EnvSchema.parse(process.env);
 const app = express();
 const assetService = new AssetService();
 
@@ -26,13 +25,23 @@ app.use(
   })
 );
 
-// 3. Sovereign CORS Implementation
+// 3. Sovereign CORS Implementation (Strict Perimeter Defense)
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && env.ALLOWED_ORIGINS.includes(origin)) {
-    res.setHeader('Access-Control-Allow-Origin', origin);
-    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (origin) {
+    if (config.ALLOWED_ORIGINS.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    } else {
+      logger.warn({ origin }, 'Sovereign Perimeter Violation: Unauthorized Origin Blocked');
+      res.status(403).json({
+        sovereignty_status: 'REJECTED',
+        error: 'SecurityViolation',
+        message: 'Origin unauthorized by sovereign policy.'
+      });
+      return;
+    }
   }
   if (req.method === 'OPTIONS') {
     res.sendStatus(204);
@@ -43,7 +52,6 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
-// Ingestion Schema allows arbitrary properties to pass through so they can be audited and purged
 const IngestSchema = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
@@ -60,7 +68,6 @@ app.post('/api/v1/harden', async (req, res, next) => {
   }
 });
 
-// Sovereign Health Check Endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OPERATIONAL',
@@ -69,9 +76,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Production Error Handler & Exception Mapper
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  // Map Zod validation errors to 400 Bad Request
   if (err instanceof z.ZodError) {
     logger.warn({ errors: err.errors }, 'Payload Validation Failure');
     res.status(400).json({
@@ -83,7 +88,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     return;
   }
 
-  // Map known operational errors
   if (err instanceof SovereigntyError) {
     logger.error({ err }, 'Sovereignty Operational Fault');
     res.status(err.statusCode).json({
@@ -94,7 +98,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     return;
   }
 
-  // Fallback for unhandled system anomalies
   logger.fatal({ err }, 'Unhandled Systemic Catastrophe');
   res.status(500).json({
     sovereignty_status: 'CRITICAL_FAILURE',
@@ -103,6 +106,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(env.PORT, () => {
-  logger.info(`Sovereignty Engine Active: Port ${env.PORT} [${env.NODE_ENV}]`);
+app.listen(config.PORT, () => {
+  logger.info(`Sovereignty Engine Active: Port ${config.PORT} [${config.NODE_ENV}]`);
 });
