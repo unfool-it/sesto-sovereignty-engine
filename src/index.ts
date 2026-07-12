@@ -1,6 +1,7 @@
-import 'dotenv/config'; // Absolute priority: Initialize environment before schema parsing
+import 'dotenv/config'; 
 import express from 'express';
 import helmet from 'helmet';
+import { pinoHttp } from 'pino-http';
 import { z } from 'zod';
 import { EnvSchema } from './config/schema.js';
 import { logger } from './utils/logger.js';
@@ -11,10 +12,13 @@ const env = EnvSchema.parse(process.env);
 const app = express();
 const assetService = new AssetService();
 
-// 1. Hardened Security Headers
+// 1. Structured HTTP Observability
+app.use(pinoHttp({ logger }));
+
+// 2. Hardened Security Headers
 app.use(helmet());
 
-// 2. Sovereign CORS Implementation
+// 3. Sovereign CORS Implementation
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin && env.ALLOWED_ORIGINS.includes(origin)) {
@@ -49,7 +53,6 @@ app.post('/api/v1/harden', async (req, res, next) => {
 
 // Production Error Handler & Exception Mapper
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  // Map Zod validation errors to 400 Bad Request
   if (err instanceof z.ZodError) {
     logger.warn({ errors: err.errors }, 'Payload Validation Failure');
     res.status(400).json({
@@ -61,7 +64,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     return;
   }
 
-  // Map known operational errors
   if (err instanceof SovereigntyError) {
     logger.error({ err }, 'Sovereignty Operational Fault');
     res.status(err.statusCode).json({
@@ -72,7 +74,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     return;
   }
 
-  // Fallback for unhandled system anomalies
   logger.fatal({ err }, 'Unhandled Systemic Catastrophe');
   res.status(500).json({
     sovereignty_status: 'CRITICAL_FAILURE',
@@ -81,6 +82,28 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, () => {
   logger.info(`Sovereignty Engine Active: Port ${env.PORT} [${env.NODE_ENV}]`);
+});
+
+// 4. Process Lifecycle Guards
+const gracefulShutdown = (signal: string) => {
+  logger.info(`${signal} received. Commencing graceful termination of the Sovereign Core.`);
+  server.close(() => {
+    logger.info('HTTP server closed. Exiting process.');
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+process.on('uncaughtException', (err) => {
+  logger.fatal(err, 'UNCAUGHT EXCEPTION DETECTED: Emergency shutdown initiated.');
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.fatal({ reason, promise }, 'UNHANDLED PROMISE REJECTION DETECTED.');
+  process.exit(1);
 });
