@@ -5,8 +5,21 @@ import { logger } from '../utils/logger.js';
 import { config } from '../config/schema.js';
 
 export class AssetService {
+    /**
+     * Enforces the Sovereignty Threshold (S) by scrubbing non-permitted keys.
+     * f(Di) = Di if i ∈ K, else Ø
+     */
+    scrub(data: Record<string, any>): Record<string, any> {
+        const allowedKeys = config.ALLOWED_SESTO_KEYS;
+        return Object.keys(data)
+            .filter(key => allowedKeys.has(key))
+            .reduce((obj, key) => {
+                obj[key] = data[key];
+                return obj;
+            }, {} as Record<string, any>);
+    }
+
     async generateAssetHash(data: Buffer | Readable): Promise<string> {
-        // Dynamically utilize the configured algorithm
         const algorithm = config.SOVEREIGN_SIGNING_ALGORITHM;
         const hash = crypto.createHash(algorithm);
         const source = data instanceof Buffer ? Readable.from(data) : data;
@@ -17,8 +30,6 @@ export class AssetService {
 
     async verifyAsset(data: Buffer | Readable, expectedHash: string): Promise<boolean> {
         const actualHash = await this.generateAssetHash(data);
-        
-        // Prevent timing attacks via constant-time comparison
         const actualBuffer = Buffer.from(actualHash, 'hex');
         const expectedBuffer = Buffer.from(expectedHash, 'hex');
         
@@ -29,10 +40,7 @@ export class AssetService {
         
         if (!isValid) {
             logger.warn({ expected: expectedHash, actual: actualHash }, 'Asset verification failed');
-        } else {
-            logger.info('Asset verified successfully');
         }
-        
         return isValid;
     }
 }
