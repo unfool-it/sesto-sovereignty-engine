@@ -1,4 +1,3 @@
-// File: sesto-sovereignty-engine-main/src/index.ts
 import 'dotenv/config'; // Absolute priority: Initialize environment before schema parsing
 import express from 'express';
 import helmet from 'helmet';
