@@ -6,10 +6,18 @@ export interface PurgeResult {
 }
 
 /**
+ * Defensive check to verify if a value is a plain object.
+ * Prevents corruption of Dates, RegExps, and class instances.
+ */
+const isPlainObject = (val: unknown): val is Record<string, any> => {
+  if (typeof val !== 'object' || val === null) return false;
+  const proto = Object.getPrototypeOf(val);
+  return proto === null || proto === Object.prototype;
+};
+
+/**
  * Recursive Sesto Template Enforcer
- * Implements the "Bottega Model" of direct architectural accountability.
  * Only keys explicitly defined in the dynamic Sesto template are preserved.
- * All other keys are purged, and their occurrences are audited.
  */
 export const enforceSestoTemplate = (
   data: unknown,
@@ -22,14 +30,13 @@ export const enforceSestoTemplate = (
       return node.map(recurse);
     }
 
-    if (node !== null && typeof node === 'object') {
+    if (isPlainObject(node)) {
       const refined: Record<string, any> = {};
       for (const [key, value] of Object.entries(node)) {
         if (allowedKeys.has(key)) {
           refined[key] = recurse(value);
         } else {
           purgedKeysCount++;
-          // Unvetted keys are dropped to prevent unmonitored data harvesting
         }
       }
       return refined;
