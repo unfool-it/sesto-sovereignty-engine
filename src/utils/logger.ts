@@ -1,6 +1,6 @@
 // File: sesto-sovereignty-engine-main/src/utils/logger.ts
 import pino from 'pino';
-import { config } from '../config/schema.js';
+import { config } from '../config/schema'; // Removed .js extension
 
 const isProduction = config.NODE_ENV === 'production';
 
