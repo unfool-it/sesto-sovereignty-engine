@@ -1,49 +1,62 @@
 // src/services/AssetService.ts
-import crypto from 'crypto';
 import { config } from '../config/schema.js';
-import { AssetError, SecurityError } from '../utils/errors.js';
+import { AssetError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { deepSort } from '../utils/serialization.js';
+import { SecurityUtils } from '../utils/security.js';
+import { InstitutionalSanitizer } from '../utils/sanitizer.js';
+
+export interface SovereigntyMetrics {
+    originalKeyCount: number;
+    purgedKeyCount: number;
+    privacyIntegrityFactor: number; 
+}
 
 export interface SovereignAsset {
     data: Record<string, any>;
     signature: string;
     timestamp: number;
     version: string;
+    metrics: SovereigntyMetrics;
 }
 
 export class AssetService {
-    private readonly algorithm: string;
-
-    constructor() {
-        this.algorithm = config.SOVEREIGN_SIGNING_ALGORITHM;
-    }
+    private readonly MAX_DEPTH = 10;
+    private readonly MIN_P_THRESHOLD = 0.5; // Institutional minimum
 
     /**
-     * Recursively enforces the Sovereignty Threshold (S).
-     * Purges unvetted keys and neutralizes script content in strings.
+     * Recursive scrubbing with depth-guard and enhanced neutralization.
      */
-    public scrub(data: any): any {
+    private scrubRecursively(
+        data: any, 
+        stats: { total: number; purged: number }, 
+        depth: number = 0
+    ): any {
+        if (depth > this.MAX_DEPTH) {
+            throw new AssetError('Sovereignty Violation: Maximum recursion depth exceeded.');
+        }
+
         if (data === null || typeof data !== 'object') {
-            // Neutralize scripts in strings
             if (typeof data === 'string') {
-                return data.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, '[VULNERABILITY_PURGED]');
+                return InstitutionalSanitizer.neutralize(data);
             }
             return data;
         }
 
         if (Array.isArray(data)) {
-            return data.map(item => this.scrub(item));
+            return data.map(item => this.scrubRecursively(item, stats, depth + 1));
         }
 
         const allowedKeys = config.ALLOWED_SESTO_KEYS;
         const sanitized: Record<string, any> = {};
 
         for (const [key, value] of Object.entries(data)) {
+            stats.total++;
             if (allowedKeys.has(key)) {
-                sanitized[key] = this.scrub(value);
+                sanitized[key] = this.scrubRecursively(value, stats, depth + 1);
             } else {
-                logger.warn({ key }, 'Unauthorized key purged at recursive depth.');
+                stats.purged++;
+                logger.warn({ key, depth }, 'Key purged: Institutional non-compliance.');
             }
         }
 
@@ -51,39 +64,43 @@ export class AssetService {
     }
 
     /**
-     * Generates a deterministic signature using deep-sorted keys.
+     * Mints a Sovereign Asset. Enforces the P-Factor Threshold.
      */
-    public sign(data: Record<string, any>): string {
-        try {
-            const deterministicData = deepSort(data);
-            const payload = JSON.stringify(deterministicData);
-            
-            return crypto
-                .createHmac(this.algorithm, config.API_SECRET)
-                .update(payload)
-                .digest('hex');
-        } catch (error) {
-            throw new SecurityError(`Cryptographic signing failed: ${(error as Error).message}`);
-        }
-    }
-
     public async mint(input: Record<string, any>): Promise<SovereignAsset> {
-        logger.info('Commencing sovereign minting process...');
-        
-        const scrubbedData = this.scrub(input);
-        
-        if (Object.keys(scrubbedData).length === 0) {
-            throw new AssetError('Minting aborted: Resulting object is empty after sovereignty scrub.');
+        logger.info('Commencing Sovereign Minting Protocol...');
+
+        const stats = { total: 0, purged: 0 };
+        const scrubbedData = this.scrubRecursively(input, stats);
+
+        const pFactor = stats.total > 0 ? (stats.total - stats.purged) / stats.total : 1;
+
+        if (pFactor < this.MIN_P_THRESHOLD) {
+            throw new AssetError(`Minting Aborted: Privacy Integrity Factor (${pFactor.toFixed(2)}) below institutional threshold.`);
         }
+
+        if (Object.keys(scrubbedData).length === 0) {
+            throw new AssetError('Minting Aborted: Resulting object is void.');
+        }
+
+        const deterministicPayload = JSON.stringify(deepSort(scrubbedData));
 
         const asset: SovereignAsset = {
             data: scrubbedData,
-            signature: this.sign(scrubbedData),
+            signature: SecurityUtils.sign(deterministicPayload),
             timestamp: Date.now(),
-            version: '1.1.0'
+            version: '1.2.1',
+            metrics: {
+                originalKeyCount: stats.total,
+                purgedKeyCount: stats.purged,
+                privacyIntegrityFactor: pFactor
+            }
         };
 
-        logger.info({ signature: asset.signature }, 'Asset integrity verified.');
+        logger.info({ 
+            signature: asset.signature, 
+            P: asset.metrics.privacyIntegrityFactor 
+        }, 'Asset successfully minted and signed.');
+
         return asset;
     }
 }
