@@ -1,111 +1,31 @@
-// File: sesto-sovereignty-engine-main/src/index.ts
-import 'dotenv/config'; // Absolute priority: Initialize environment before schema parsing
-import express from 'express';
-import helmet from 'helmet';
-import { pinoHttp } from 'pino-http';
-import { z } from 'zod';
-import { config } from './config/schema.js';
-import { logger } from './utils/logger.js';
-import { AssetService } from './services/AssetService.js';
-import { SovereigntyError } from './utils/errors.js';
+import { logger } from './utils/logger';
+import { config } from './config/schema';
+import { AssetService } from './services/AssetService';
 
-const app = express();
-const assetService = new AssetService();
+async function bootstrap() {
+    logger.info('Initializing Sesto Sovereignty Engine...', { version: process.env.npm_package_version });
 
-// 1. Hardened Security Headers
-app.use(helmet());
+    try {
+        const assetService = new AssetService();
+        
+        // Signal Handling for Graceful Shutdown
+        const shutdown = async (signal: string) => {
+            logger.info(`Received ${signal}. Shutting down gracefully...`);
+            // Close database connections or file streams here
+            process.exit(0);
+        };
 
-// 2. Sovereign Telemetry & Request Logging
-app.use(
-  pinoHttp({
-    logger,
-    autoLogging: {
-      ignore: (req) => req.url === '/health',
-    },
-  })
-);
+        process.on('SIGTERM', () => shutdown('SIGTERM'));
+        process.on('SIGINT', () => shutdown('SIGINT'));
 
-// 3. Sovereign CORS Implementation (Strict Perimeter Defense)
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin) {
-    if (config.ALLOWED_ORIGINS.includes(origin)) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    } else {
-      logger.warn({ origin }, 'Sovereign Perimeter Violation: Unauthorized Origin Blocked');
-      res.status(403).json({
-        sovereignty_status: 'REJECTED',
-        error: 'SecurityViolation',
-        message: 'Origin unauthorized by sovereign policy.'
-      });
-      return;
+        logger.info('Engine started successfully.', { node_env: config.NODE_ENV });
+    } catch (error) {
+        logger.error('Critical Engine Failure:', error instanceof Error ? error.message : error);
+        process.exit(1);
     }
-  }
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(204);
-    return;
-  }
-  next();
-});
+}
 
-app.use(express.json());
-
-const IngestSchema = z.object({
-  title: z.string().min(1),
-  body: z.string().min(1),
-  external_scripts: z.array(z.string()).optional(),
-}).passthrough();
-
-app.post('/api/v1/harden', async (req, res, next) => {
-  try {
-    const validatedBody = IngestSchema.parse(req.body);
-    const result = await assetService.hardenAsset(validatedBody);
-    res.status(201).json(result);
-  } catch (error) {
-    next(error);
-  }
-});
-
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'OPERATIONAL',
-    sovereignty_threshold: 1.0,
-    timestamp: new Date().toISOString(),
-  });
-});
-
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (err instanceof z.ZodError) {
-    logger.warn({ errors: err.errors }, 'Payload Validation Failure');
-    res.status(400).json({
-      sovereignty_status: 'REJECTED',
-      error: 'ValidationError',
-      message: 'The provided payload violates the structural integrity of the Sesto template.',
-      details: err.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
-    });
-    return;
-  }
-
-  if (err instanceof SovereigntyError) {
-    logger.error({ err }, 'Sovereignty Operational Fault');
-    res.status(err.statusCode).json({
-      sovereignty_status: 'COMPROMISED',
-      error: err.name,
-      message: err.message
-    });
-    return;
-  }
-
-  logger.fatal({ err }, 'Unhandled Systemic Catastrophe');
-  res.status(500).json({
-    sovereignty_status: 'CRITICAL_FAILURE',
-    error: 'InternalServerError',
-    message: 'An unhandled internal anomaly has occurred.'
-  });
-});
-
-app.listen(config.PORT, () => {
-  logger.info(`Sovereignty Engine Active: Port ${config.PORT} [${config.NODE_ENV}]`);
+bootstrap().catch((err) => {
+    console.error('Fatal startup error:', err);
+    process.exit(1);
 });
