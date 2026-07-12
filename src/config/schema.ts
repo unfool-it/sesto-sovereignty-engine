@@ -1,5 +1,8 @@
-// File: sesto-sovereignty-engine-main/src/config/schema.ts
 import { z } from 'zod';
+import dotenv from 'dotenv';
+
+// Hydrate process.env before schema execution
+dotenv.config();
 
 export const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('production'),
@@ -16,5 +19,4 @@ export const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
-// Execute parsing once at the architectural boundary
 export const config = EnvSchema.parse(process.env);
