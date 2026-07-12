@@ -1,3 +1,5 @@
+// File: sesto-sovereignty-engine-main/src/index.ts
+import 'dotenv/config'; // Absolute priority: Initialize environment before schema parsing
 import express from 'express';
 import helmet from 'helmet';
 import { z } from 'zod';
@@ -10,7 +12,24 @@ const env = EnvSchema.parse(process.env);
 const app = express();
 const assetService = new AssetService();
 
+// 1. Hardened Security Headers
 app.use(helmet());
+
+// 2. Sovereign CORS Implementation
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && env.ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 app.use(express.json());
 
 const IngestSchema = z.object({
@@ -20,27 +39,46 @@ const IngestSchema = z.object({
 });
 
 app.post('/api/v1/harden', async (req, res, next) => {
-  const controller = new AbortController();
-  
   try {
     const validatedBody = IngestSchema.parse(req.body);
-    const result = await assetService.hardenAsset(validatedBody, controller.signal);
-    
+    const result = await assetService.hardenAsset(validatedBody);
     res.status(201).json(result);
   } catch (error) {
     next(error);
   }
 });
 
-// Production Error Handler
+// Production Error Handler & Exception Mapper
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  const status = err instanceof SovereigntyError ? err.statusCode : 500;
-  logger.error({ err }, 'Operational Fault');
-  
-  res.status(status).json({
-    sovereignty_status: 'COMPROMISED',
-    error: err.name,
-    message: err.message
+  // Map Zod validation errors to 400 Bad Request
+  if (err instanceof z.ZodError) {
+    logger.warn({ errors: err.errors }, 'Payload Validation Failure');
+    res.status(400).json({
+      sovereignty_status: 'REJECTED',
+      error: 'ValidationError',
+      message: 'The provided payload violates the structural integrity of the Sesto template.',
+      details: err.errors.map(e => ({ path: e.path.join('.'), message: e.message }))
+    });
+    return;
+  }
+
+  // Map known operational errors
+  if (err instanceof SovereigntyError) {
+    logger.error({ err }, 'Sovereignty Operational Fault');
+    res.status(err.statusCode).json({
+      sovereignty_status: 'COMPROMISED',
+      error: err.name,
+      message: err.message
+    });
+    return;
+  }
+
+  // Fallback for unhandled system anomalies
+  logger.fatal({ err }, 'Unhandled Systemic Catastrophe');
+  res.status(500).json({
+    sovereignty_status: 'CRITICAL_FAILURE',
+    error: 'InternalServerError',
+    message: 'An unhandled internal anomaly has occurred.'
   });
 });
 
