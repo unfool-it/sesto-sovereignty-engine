@@ -1,24 +1,26 @@
-import { logger } from './utils/logger';
-import { config } from './config/schema';
-import { AssetService } from './services/AssetService';
+// src/index.ts
+import { logger } from './utils/logger.js';
+import { config } from './config/schema.js';
+import { AssetService } from './services/AssetService.js';
 
 async function bootstrap() {
-    logger.info('Initializing Sesto Sovereignty Engine...', { version: process.env.npm_package_version });
+    logger.info('Initializing Sesto Sovereignty Engine...', { version: '1.1.0' });
 
     try {
         const assetService = new AssetService();
         
-        // Signal Handling for Graceful Shutdown
         const shutdown = async (signal: string) => {
-            logger.info(`Received ${signal}. Shutting down gracefully...`);
-            // Close database connections or file streams here
+            logger.info(`Received ${signal}. Purging memory and shutting down...`);
             process.exit(0);
         };
 
         process.on('SIGTERM', () => shutdown('SIGTERM'));
         process.on('SIGINT', () => shutdown('SIGINT'));
 
-        logger.info('Engine started successfully.', { node_env: config.NODE_ENV });
+        logger.info('Engine started successfully.', { 
+            node_env: config.NODE_ENV,
+            sovereignty_status: 'ACTIVE' 
+        });
     } catch (error) {
         logger.error('Critical Engine Failure:', error instanceof Error ? error.message : error);
         process.exit(1);
