@@ -1,50 +1,43 @@
-// File: sesto-sovereignty-engine-main/src/utils/security.ts
+import crypto from 'crypto';
+import { SecurityError } from './errors';
 
-export interface PurgeResult {
-  refined: any;
-  purgedKeysCount: number;
-}
+export class SecurityUtils {
+    private static readonly ALGORITHM = 'aes-256-gcm';
+    private static readonly IV_LENGTH = 16;
+    private static readonly AUTH_TAG_LENGTH = 16;
 
-/**
- * Defensive check to verify if a value is a plain object.
- * Prevents corruption of Dates, RegExps, and class instances.
- */
-const isPlainObject = (val: unknown): val is Record<string, any> => {
-  if (typeof val !== 'object' || val === null) return false;
-  const proto = Object.getPrototypeOf(val);
-  return proto === null || proto === Object.prototype;
-};
+    static encrypt(data: string, key: string): string {
+        try {
+            const keyBuffer = Buffer.from(key, 'hex');
+            if (keyBuffer.length !== 32) throw new SecurityError('Invalid key length. Must be 32 bytes.');
 
-/**
- * Recursive Sesto Template Enforcer
- * Only keys explicitly defined in the dynamic Sesto template are preserved.
- */
-export const enforceSestoTemplate = (
-  data: unknown,
-  allowedKeys: Set<string>
-): PurgeResult => {
-  let purgedKeysCount = 0;
+            const iv = crypto.randomBytes(this.IV_LENGTH);
+            const cipher = crypto.createCipheriv(this.ALGORITHM, keyBuffer, iv);
+            
+            const encrypted = Buffer.concat([cipher.update(data, 'utf8'), cipher.final()]);
+            const authTag = cipher.getAuthTag();
 
-  const recurse = (node: unknown): any => {
-    if (Array.isArray(node)) {
-      return node.map(recurse);
-    }
-
-    if (isPlainObject(node)) {
-      const refined: Record<string, any> = {};
-      for (const [key, value] of Object.entries(node)) {
-        if (allowedKeys.has(key)) {
-          refined[key] = recurse(value);
-        } else {
-          purgedKeysCount++;
+            return Buffer.concat([iv, authTag, encrypted]).toString('hex');
+        } catch (error) {
+            throw new SecurityError(`Encryption failed: ${(error as Error).message}`);
         }
-      }
-      return refined;
     }
 
-    return node;
-  };
+    static decrypt(cipherText: string, key: string): string {
+        try {
+            const data = Buffer.from(cipherText, 'hex');
+            const keyBuffer = Buffer.from(key, 'hex');
+            
+            const iv = data.subarray(0, this.IV_LENGTH);
+            const authTag = data.subarray(this.IV_LENGTH, this.IV_LENGTH + this.AUTH_TAG_LENGTH);
+            const encrypted = data.subarray(this.IV_LENGTH + this.AUTH_TAG_LENGTH);
 
-  const refined = recurse(data);
-  return { refined, purgedKeysCount };
-};
+            const decipher = crypto.createDecipheriv(this.ALGORITHM, keyBuffer, iv);
+            decipher.setAuthTag(authTag);
+
+            return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+        } catch (error) {
+            throw new SecurityError(`Decryption failed: ${(error as Error).message}`);
+        }
+    }
+}
