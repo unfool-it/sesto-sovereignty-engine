@@ -1,6 +1,5 @@
-// File: sesto-sovereignty-engine-main/src/utils/logger.ts
 import pino from 'pino';
-import { config } from '../config/schema'; // Removed .js extension
+import { config } from '../config/schema.js';
 
 const isProduction = config.NODE_ENV === 'production';
 
@@ -16,7 +15,7 @@ export const logger = pino({
       }
     : undefined,
   redact: {
-    paths: ['req.headers.authorization', 'body.api_secret'],
+    paths: ['req.headers.authorization', 'API_SECRET', 'API_KEY'],
     placeholder: '[REDACTED_SOVEREIGN_DATA]',
   },
 });
