@@ -1,19 +1,26 @@
-# Build stage
-FROM node:20-slim AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-# Production stage
-FROM node:20-slim
-WORKDIR /app
-RUN groupadd -r sesto && useradd -r -g sesto sesto
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
-RUN npm ci --omit=dev
-
-USER sesto
-ENV NODE_ENV=production
-CMD ["node", "dist/index.js"]
+{
+  "name": "sesto-sovereignty-engine",
+  "version": "1.1.0",
+  "description": "Sovereign asset management engine",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev src/index.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "lint": "eslint 'src/**/*.ts'",
+    "format": "prettier --write 'src/**/*.ts'"
+  },
+  "dependencies": {
+    "pino": "^9.0.0",
+    "zod": "^3.22.4",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "pino-pretty": "^11.0.0",
+    "@types/node": "^20.10.5",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.1.0"
+  }
+}
