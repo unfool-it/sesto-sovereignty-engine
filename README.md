@@ -1,5 +1,11 @@
 # 🏛️ SESTO SOVEREIGNTY ENGINE
-**Version 1.0.0 | Institutional Asset Management | Unfool.it Bottega**
+
+![Version](https://img.shields.io/badge/Version-1.0.0-gold?style=for-the-badge)
+![License](https://img.shields.io/badge/License-CC_BY--NC_4.0-blue?style=for-the-badge)
+![Security](https://img.shields.io/badge/Telemetry-Purged-success?style=for-the-badge)
+![Asset Class](https://img.shields.io/badge/Asset_Class-Sovereign_Institutional-red?style=for-the-badge)
+
+**Institutional Asset Management | Unfool.it Bottega**
 
 > "Naval power depends on the absolute ownership of the underlying geometry." — *Venetian Senate Records, XV Century.*
 
@@ -90,22 +96,21 @@ docker run -d \
   sesto-engine:latest
 ```
 
-### 3. Verification of Ownership
-Test the hardening protocol by submitting a payload. Any unauthorized keys (telemetry) will be purged instantly.
+---
 
-```bash
-curl -X POST http://localhost:3000/api/v1/harden \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Venetian Maritime Strategy",
-    "body": "The sesto defines the hull...",
-    "unauthorized_tracking_pixel": "https://tracker.external.com/pixel.gif"
-  }'
-```
+## Ⅴ. INSTITUTIONAL PROVENANCE & LICENSING
+The **Sesto Sovereignty Engine** is issued as an institutional asset under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license.
+
+### The Title Deed
+- **Attribution**: You must give appropriate credit to **Unfool.it Bottega** and provide a link to the license.
+- **Non-Commercial**: You may not use this material for commercial purposes or monetary gain.
+- **Sovereign Use**: Institutions are encouraged to use, modify, and study the engine for internal resiliency and non-commercial research.
+
+*For full legal terms, refer to the `LICENSE` file in this repository.*
 
 ---
 
-## Ⅴ. THE ARCHITECT’S OATH
+## Ⅵ. THE ARCHITECT’S OATH
 Every character of this code has been rigorously vetted to ensure compliance with institutional security standards. We reject the "bit rot" of popular frameworks in favor of hand-coded, high-performance architectures.
 
 **Finality of Asset**: Once the handover is complete, the institution possesses the absolute power to host, edit, or destroy the asset at its own discretion. The title deed is yours.
