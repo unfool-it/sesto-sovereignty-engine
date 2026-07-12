@@ -1,22 +1,19 @@
-# Multi-stage build for Digital Asset Sovereignty
+# Build stage
 FROM node:20-slim AS builder
-WORKDIR /usr/src/app
+WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
+# Production stage
 FROM node:20-slim
-WORKDIR /usr/src/app
+WORKDIR /app
+RUN groupadd -r sesto && useradd -r -g sesto sesto
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package*.json ./
+RUN npm ci --omit=dev
+
+USER sesto
 ENV NODE_ENV=production
-
-# Copy package manifests and install production dependencies securely
-COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-
-# Copy compiled assets with strict non-privileged ownership
-COPY --from=builder --chown=node:node /usr/src/app/dist ./dist
-
-USER node
-EXPOSE 3000
 CMD ["node", "dist/index.js"]
