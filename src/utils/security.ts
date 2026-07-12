@@ -1,46 +1,43 @@
+// File: sesto-sovereignty-engine-main/src/utils/security.ts
+
+export interface PurgeResult {
+  refined: any;
+  purgedKeysCount: number;
+}
+
 /**
- * Context-Aware Recursive PII Scrubber
+ * Recursive Sesto Template Enforcer
  * Implements the "Bottega Model" of direct architectural accountability.
- * Only keys explicitly allowed in the 'sesto' are preserved at the root level.
- * Nested structures within allowed container keys (e.g., 'metadata') are preserved
- * but sanitized of common PII patterns.
+ * Only keys explicitly defined in the dynamic Sesto template are preserved.
+ * All other keys are purged, and their occurrences are audited.
  */
-const ALLOWED_ROOT_KEYS = new Set(['title', 'body', 'author', 'version', 'metadata']);
+export const enforceSestoTemplate = (
+  data: unknown,
+  allowedKeys: Set<string>
+): PurgeResult => {
+  let purgedKeysCount = 0;
 
-const PII_PATTERNS = [
-  /password/i,
-  /secret/i,
-  /token/i,
-  /api_?key/i,
-  /credit_?card/i,
-  /ssn/i
-];
+  const recurse = (node: unknown): any => {
+    if (Array.isArray(node)) {
+      return node.map(recurse);
+    }
 
-export const enforceSestoTemplate = (data: unknown, isRoot = true): any => {
-  if (Array.isArray(data)) {
-    return data.map(item => enforceSestoTemplate(item, false));
-  }
-
-  if (data !== null && typeof data === 'object') {
-    const refined: Record<string, any> = {};
-    for (const [key, value] of Object.entries(data)) {
-      if (isRoot) {
-        // At the root level, strictly enforce the Sesto template keys
-        if (ALLOWED_ROOT_KEYS.has(key)) {
-          refined[key] = enforceSestoTemplate(value, false);
-        }
-      } else {
-        // In nested structures, preserve keys but redact potential PII keys
-        const isPiiKey = PII_PATTERNS.some(pattern => pattern.test(key));
-        if (!isPiiKey) {
-          refined[key] = enforceSestoTemplate(value, false);
+    if (node !== null && typeof node === 'object') {
+      const refined: Record<string, any> = {};
+      for (const [key, value] of Object.entries(node)) {
+        if (allowedKeys.has(key)) {
+          refined[key] = recurse(value);
         } else {
-          refined[key] = '[REDACTED_SOVEREIGN_DATA]';
+          purgedKeysCount++;
+          // Unvetted keys are dropped to prevent unmonitored data harvesting
         }
       }
+      return refined;
     }
-    return refined;
-  }
 
-  return data;
+    return node;
+  };
+
+  const refined = recurse(data);
+  return { refined, purgedKeysCount };
 };
