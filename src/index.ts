@@ -2,38 +2,53 @@
 import { logger } from './utils/logger.js';
 import { config } from './config/schema.js';
 import { AssetService } from './services/AssetService.js';
+import { VaultService } from './services/VaultService.js';
 
 async function bootstrap() {
-    logger.info('Initializing Sesto Sovereignty Engine...', { version: '1.1.0' });
+    logger.info('🏛️ Sesto Sovereignty Engine | Initializing Institutional Core', { 
+        env: config.NODE_ENV,
+        port: config.PORT 
+    });
 
     try {
         const assetService = new AssetService();
+        const vaultService = new VaultService();
 
-        // Demonstration of Sovereign Minting
-        // This simulates receiving data from the "External Wilderness"
-        const externalData = {
-            title: "Venetian Galley Blueprints",
-            author: "Arsenal Master",
-            telemetry_id: "UA-99021-X", // This should be purged
-            unvetted_script: "alert('pwned')", // This should be purged
-            metadata: { structural_integrity: "high" }
+        // Prepare Sovereign Storage
+        await vaultService.initialize();
+
+        // Simulate High-Entropy Wilderness Data
+        const externalPayload = {
+            title: "Arsenal Structural Integrity Report",
+            author: "Chief Architect",
+            metadata: {
+                version: "XV-II",
+                telemetry_beacon: "882-110", // Should be purged recursively
+                notes: "Verified by <script>alert('malice')</script> Senate." // Script should be neutralized
+            },
+            unvetted_system_key: "DELETE_ALL" // Should be purged
         };
 
-        const sovereignAsset = await assetService.mint(externalData);
+        // Execution of the Sovereignty Protocol
+        const asset = await assetService.mint(externalPayload);
+        const archivePath = await vaultService.archive(asset);
         
-        logger.info(sovereignAsset, 'Sovereign Asset produced and verified.');
-        
+        logger.info({ archivePath }, 'Sovereign Asset securely archived.');
+
         const shutdown = async (signal: string) => {
-            logger.info(`Received ${signal}. Purging memory and shutting down...`);
+            logger.info(`Protocol ${signal} received. Harmonizing state and exiting...`);
             process.exit(0);
         };
 
         process.on('SIGTERM', () => shutdown('SIGTERM'));
         process.on('SIGINT', () => shutdown('SIGINT'));
 
-        logger.info('Engine standing by. Sovereignty status: OPTIMAL.');
+        logger.info('Sesto Engine active. Sovereignty Threshold: SECURE.');
     } catch (error) {
-        logger.error('Critical Engine Failure:', error instanceof Error ? error.message : error);
+        logger.fatal({ 
+            error: error instanceof Error ? error.message : 'Unknown Failure',
+            stack: error instanceof Error ? error.stack : undefined 
+        }, 'Critical Engine Failure.');
         process.exit(1);
     }
 }
