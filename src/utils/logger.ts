@@ -1,10 +1,10 @@
-// File: sesto-sovereignty-engine-main/src/utils/logger.ts
 import pino from 'pino';
+import { config } from '../config/schema.js';
 
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = config.NODE_ENV === 'production';
 
 export const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
+  level: config.LOG_LEVEL,
   transport: !isProduction
     ? {
         target: 'pino-pretty',
