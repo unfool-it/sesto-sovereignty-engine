@@ -1,33 +1,43 @@
-import 'dotenv/config'; 
+import 'dotenv/config'; // Absolute priority: Initialize environment before schema parsing
 import express from 'express';
 import helmet from 'helmet';
-import { pinoHttp } from 'pino-http';
+import pinoHttp from 'pino-http';
 import { z } from 'zod';
-import { EnvSchema } from './config/schema.js';
+import { config } from './config/schema.js';
 import { logger } from './utils/logger.js';
 import { AssetService } from './services/AssetService.js';
 import { SovereigntyError } from './utils/errors.js';
 
-const env = EnvSchema.parse(process.env);
 const app = express();
 const assetService = new AssetService();
 
-// 1. Structured HTTP Observability
-app.use(pinoHttp({ logger }));
-
-// 2. Hardened Security Headers
+// 1. Hardened Security Headers
 app.use(helmet());
 
-// 3. Sovereign CORS Implementation
+// 2. High-Performance Observability Integration
+app.use(pinoHttp({ logger }));
+
+// 3. Sovereign CORS & Preflight Implementation
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin && env.ALLOWED_ORIGINS.includes(origin)) {
+  const isAllowed = origin && config.ALLOWED_ORIGINS.includes(origin);
+
+  if (isAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   }
+
   if (req.method === 'OPTIONS') {
-    res.sendStatus(204);
+    if (isAllowed) {
+      res.sendStatus(204);
+    } else {
+      res.status(403).json({
+        sovereignty_status: 'REJECTED',
+        error: 'OriginNotAllowed',
+        message: 'CORS preflight rejected: Origin is not registered within the sovereign perimeter.'
+      });
+    }
     return;
   }
   next();
@@ -82,28 +92,6 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-const server = app.listen(env.PORT, () => {
-  logger.info(`Sovereignty Engine Active: Port ${env.PORT} [${env.NODE_ENV}]`);
-});
-
-// 4. Process Lifecycle Guards
-const gracefulShutdown = (signal: string) => {
-  logger.info(`${signal} received. Commencing graceful termination of the Sovereign Core.`);
-  server.close(() => {
-    logger.info('HTTP server closed. Exiting process.');
-    process.exit(0);
-  });
-};
-
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-
-process.on('uncaughtException', (err) => {
-  logger.fatal(err, 'UNCAUGHT EXCEPTION DETECTED: Emergency shutdown initiated.');
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  logger.fatal({ reason, promise }, 'UNHANDLED PROMISE REJECTION DETECTED.');
-  process.exit(1);
+app.listen(config.PORT, () => {
+  logger.info(`Sovereignty Engine Active: Port ${config.PORT} [${config.NODE_ENV}]`);
 });
