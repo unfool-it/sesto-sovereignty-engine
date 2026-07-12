@@ -1,9 +1,9 @@
 import crypto from 'crypto';
-import { SecurityError } from './errors';
+import { SecurityError } from './errors.js'; // Note the mandatory .js extension
 
 export class SecurityUtils {
     private static readonly ALGORITHM = 'aes-256-gcm';
-    private static readonly IV_LENGTH = 16;
+    private static readonly IV_LENGTH = 12; // Corrected to 12 bytes (96 bits)
     private static readonly AUTH_TAG_LENGTH = 16;
 
     static encrypt(data: string, key: string): string {
